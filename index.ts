@@ -436,12 +436,14 @@ export default function createServer({ config }: { config: z.infer<typeof config
         transactions,
         actionItems,
         estimates,
+        schedules,
         scheduleRevisions,
         estimateRevisions,
       ] = await Promise.all([
         makeRequest('GET', '/transactions', null, { projectId: resolvedProjectId }),
         makeRequest('GET', '/action-items', null, { projectId: resolvedProjectId }),
         makeRequest('GET', '/estimates', null, { projectId: resolvedProjectId }),
+        makeRequest('GET', '/schedules', null, { projectId: resolvedProjectId }),
         makeRequest('GET', '/schedule-revisions', null, { projectId: resolvedProjectId }),
         makeRequest('GET', '/estimates/revision-history', null, { projectId: resolvedProjectId }),
       ]);
@@ -451,6 +453,7 @@ export default function createServer({ config }: { config: z.infer<typeof config
         { title: 'TRANSACTIONS', data: transactions },
         { title: 'ACTION ITEMS', data: actionItems },
         { title: 'ESTIMATES', data: estimates },
+        { title: 'SCHEDULES', data: schedules },
         { title: 'SCHEDULE REVISIONS', data: scheduleRevisions },
         { title: 'ESTIMATE REVISIONS', data: estimateRevisions },
       ];
