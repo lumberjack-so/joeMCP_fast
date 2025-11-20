@@ -1,0 +1,37 @@
+{
+  "name": "joemcp",
+  "version": "1.0.0",
+  "description": "Standalone MCP server for JoeAPI construction management",
+  "main": "build/index.js",
+  "type": "module",
+  "module": "index.ts",
+  "scripts": {
+    "dev": "smithery dev",
+    "build": "npm run build:http",
+    "build:http": "smithery build",
+    "build:stdio": "tsc",
+    "start": "npm run start:http",
+    "start:http": "node .smithery/index.cjs",
+    "start:stdio": "node build/index.js",
+    "dev:stdio": "tsx index.ts",
+    "prepublishOnly": "npm run build:stdio"
+  },
+  "keywords": [
+    "mcp",
+    "construction",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "@smithery/sdk": "^1.6.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@smithery/cli": "^1.4.0",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

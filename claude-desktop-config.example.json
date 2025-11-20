@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "joeapi-local": {
+      "command": "node",
+      "args": [
+        "/Users/Shared/dev/joeMCP/build/local-server.js"
+      ],
+      "env": {
+        "JOEAPI_BASE_URL": "http://localhost:8080"
+      },
+      "disabled": false
+    }
+  }
+}
