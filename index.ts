@@ -263,8 +263,8 @@ export default function createServer({ config }: { config: z.infer<typeof config
     'create_action_item',
     {
       title: 'Create Action Item',
-      description: 'Create a new Action Item. Can be Generic (ActionTypeId=3), Cost Change (ActionTypeId=1), or Schedule Change (ActionTypeId=2). For Cost/Schedule changes, include the corresponding nested object.',
-      inputSchema: {
+      description: 'Create a new Action Item. Can be Generic (ActionTypeId=3), Cost Change (ActionTypeId=1), or Schedule Change (ActionTypeId=2). For Cost/Schedule changes, you MUST include the corresponding nested object with all required fields.',
+      inputSchema: z.object({
         Title: z.string().describe('Action item title'),
         Description: z.string().describe('Action item description'),
         ProjectId: z.string().describe('UUID of the project'),
@@ -277,13 +277,31 @@ export default function createServer({ config }: { config: z.infer<typeof config
           Amount: z.number().describe('Cost change amount'),
           EstimateCategoryId: z.string().describe('UUID of estimate category'),
           RequiresClientApproval: z.boolean().describe('Whether client approval is required'),
-        }).optional().describe('Cost change details (required if ActionTypeId=1)'),
+        }).optional().describe('Cost change details (REQUIRED when ActionTypeId=1)'),
         ScheduleChange: z.object({
           NoOfDays: z.number().describe('Number of days to adjust schedule'),
           ConstructionTaskId: z.string().describe('UUID of construction task'),
           RequiresClientApproval: z.boolean().describe('Whether client approval is required'),
-        }).optional().describe('Schedule change details (required if ActionTypeId=2)'),
-      },
+        }).optional().describe('Schedule change details (REQUIRED when ActionTypeId=2)'),
+      }).superRefine((data, ctx) => {
+        // Enforce CostChange when ActionTypeId=1
+        if (data.ActionTypeId === 1 && !data.CostChange) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'CostChange object with Amount, EstimateCategoryId, and RequiresClientApproval is REQUIRED when ActionTypeId=1',
+            path: ['CostChange'],
+          });
+        }
+
+        // Enforce ScheduleChange when ActionTypeId=2
+        if (data.ActionTypeId === 2 && !data.ScheduleChange) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'ScheduleChange object with NoOfDays, ConstructionTaskId, and RequiresClientApproval is REQUIRED when ActionTypeId=2',
+            path: ['ScheduleChange'],
+          });
+        }
+      }),
     },
     async (args) => {
       // Always ensure Status and Source are set to 1 if not provided

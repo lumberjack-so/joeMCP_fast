@@ -385,6 +385,11 @@ list_action_items({
 
 Create a new action item. Supports three types: Generic, Cost Change, or Schedule Change.
 
+**⚠️ IMPORTANT VALIDATION:**
+- When `ActionTypeId=1` (Cost Change): **CostChange object is MANDATORY** with all fields
+- When `ActionTypeId=2` (Schedule Change): **ScheduleChange object is MANDATORY** with all fields
+- Missing required nested objects will cause validation errors
+
 **Input Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
