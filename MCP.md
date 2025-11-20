@@ -635,7 +635,7 @@ list_project_schedules({}) // Uses default: limit=5
 
 ### search
 
-**⭐ POWER TOOL** - Search for a project and retrieve comprehensive data from 6 different endpoints in a single call.
+**⭐ POWER TOOL** - Search for a project and retrieve comprehensive structured data from 7 different endpoints in a single unified JSON response.
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |
@@ -650,7 +650,8 @@ list_project_schedules({}) // Uses default: limit=5
    - Takes first matching project
    - Extracts `projectId` from result
 
-2. **Parallel Data Fetch** (6 simultaneous API calls):
+2. **Parallel Data Fetch** (7 simultaneous API calls):
+   - `GET /api/v1/project-details/{projectId}`
    - `GET /api/v1/transactions?projectId={id}`
    - `GET /api/v1/action-items?projectId={id}`
    - `GET /api/v1/estimates?projectId={id}`
@@ -658,72 +659,131 @@ list_project_schedules({}) // Uses default: limit=5
    - `GET /api/v1/schedule-revisions?projectId={id}`
    - `GET /api/v1/estimates/revision-history?projectId={id}`
 
-3. **Aggregation**:
-   - Combines all 6 data sources
-   - Formats with section headers
-   - Returns unified response
+3. **Structured Aggregation**:
+   - Parses all JSON responses
+   - Organizes into logical groups (project → financials → schedules → action items)
+   - Returns single unified JSON object
+   - Preserves all IDs, values, names, and descriptions
 
 **Output Format:**
-```
-PROJECT SEARCH RESULTS (Project ID: abc-123-def)
-
-TRANSACTIONS:
+```json
 {
-  "data": [...]
-}
-
----
-
-ACTION ITEMS:
-{
-  "data": [...]
-}
-
----
-
-ESTIMATES:
-{
-  "data": [...]
-}
-
----
-
-SCHEDULES:
-{
-  "data": [...]
-}
-
----
-
-SCHEDULE REVISIONS:
-{
-  "data": [...]
-}
-
----
-
-ESTIMATE REVISIONS:
-{
-  "data": [...]
+  "projectId": "abc-123-def",
+  "project": {
+    "projectId": "abc-123-def",
+    "name": "Main Street Renovation",
+    "description": "Complete building renovation",
+    "status": "active",
+    "clientId": "client-uuid",
+    "startDate": "2025-01-01",
+    "estimatedCompletion": "2025-06-30",
+    "budget": 150000.00,
+    "actualCost": 75000.00,
+    "progress": 45
+  },
+  "financials": {
+    "estimates": {
+      "data": [
+        {
+          "id": "estimate-uuid",
+          "projectId": "abc-123-def",
+          "category": "Labor",
+          "description": "Construction labor costs",
+          "estimatedCost": 50000.00,
+          "actualCost": 48500.00
+        }
+      ]
+    },
+    "estimateRevisionHistory": {
+      "data": [
+        {
+          "id": "revision-uuid",
+          "estimateId": "estimate-uuid",
+          "revisionDate": "2025-01-15",
+          "previousAmount": 45000.00,
+          "newAmount": 50000.00,
+          "reason": "Scope change approved by client"
+        }
+      ]
+    },
+    "transactions": {
+      "data": [
+        {
+          "id": "transaction-uuid",
+          "projectId": "abc-123-def",
+          "date": "2025-01-10",
+          "description": "Material purchase - lumber",
+          "amount": 8500.00,
+          "category": "Materials",
+          "vendor": "ABC Supply"
+        }
+      ]
+    }
+  },
+  "schedules": {
+    "current": {
+      "data": [
+        {
+          "id": "schedule-uuid",
+          "projectId": "abc-123-def",
+          "taskName": "Foundation work",
+          "description": "Pour foundation and footings",
+          "startDate": "2025-01-15",
+          "endDate": "2025-02-15",
+          "status": "in_progress",
+          "assignedTo": "Crew A"
+        }
+      ]
+    },
+    "revisions": {
+      "data": [
+        {
+          "id": "revision-uuid",
+          "scheduleId": "schedule-uuid",
+          "revisionDate": "2025-01-20",
+          "previousEndDate": "2025-02-10",
+          "newEndDate": "2025-02-15",
+          "reason": "Weather delay - rain",
+          "daysAdded": 5
+        }
+      ]
+    }
+  },
+  "actionItems": {
+    "data": [
+      {
+        "id": "action-uuid",
+        "Title": "Order materials",
+        "Description": "Order cabinets from supplier XYZ",
+        "ProjectId": "abc-123-def",
+        "ActionTypeId": 3,
+        "DueDate": "2025-01-20",
+        "Status": 1,
+        "createdAt": "2025-01-15T10:00:00Z"
+      }
+    ]
+  }
 }
 ```
 
 **Error Handling:**
 - If no projects match query: Returns error "No project found matching query"
 - If search endpoint fails: Returns API error
-- Individual section errors are included in output (doesn't fail entire request)
+- Individual endpoint errors are included as `{ error: "error message" }` in their respective sections
+- Failed sections don't prevent other sections from loading
 
 **Performance:**
-- **With search:** 7 total API calls (1 search + 6 parallel fetches)
-- **Direct projectId:** 6 total API calls (parallel fetches only)
-- All 6 data fetches happen simultaneously via `Promise.all`
+- **With search:** 8 total API calls (1 search + 7 parallel fetches)
+- **Direct projectId:** 7 total API calls (parallel fetches only)
+- All 7 data fetches happen simultaneously via `Promise.all`
+- Response is a single unified JSON object (no parsing needed)
 
 **Example Usage:**
 
 **Search by name:**
 ```javascript
 search({ query: "Kitchen Remodel" })
-// Searches for project, then fetches all data
+// Returns complete structured JSON with all project data
 ```
 
 **Direct lookup (faster):**
@@ -736,10 +796,12 @@ search({
 ```
 
 **Use Cases:**
-- Get complete project snapshot in one call
-- Analyze project status across multiple dimensions
-- Prepare comprehensive project reports
-- When you need transactions, estimates, schedules, and revisions together
+- Get complete project snapshot in one structured call
+- Analyze project status across multiple dimensions (financial, schedule, tasks)
+- Prepare comprehensive project reports with all relevant data
+- Feed structured data to analytics or AI agents
+- Single source of truth for project state
+- Efficient data transfer (one call vs. 7+ separate calls)
 
 ---
 

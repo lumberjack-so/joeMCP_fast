@@ -380,7 +380,7 @@ export default function createServer({ config }: { config: z.infer<typeof config
     'search',
     {
       title: 'Search Projects',
-      description: 'Search for a project and get comprehensive data including transactions, action items, estimates, and schedule revisions',
+      description: 'Search for a project and get comprehensive structured data including project details, financials (estimates, estimate revisions, transactions), schedules (current and revisions), and action items - all in one unified JSON response',
       inputSchema: {
         query: z.string().describe('Search query to find the project (searches in project name, description, status)'),
         projectId: z.string().optional().describe('Optional: Direct project ID if already known (skips search step)'),
@@ -431,8 +431,9 @@ export default function createServer({ config }: { config: z.infer<typeof config
         }
       }
 
-      // Step 2: Fetch all project data in parallel
+      // Step 2: Fetch all project data in parallel (7 endpoints)
       const [
+        projectDetails,
         transactions,
         actionItems,
         estimates,
@@ -440,6 +441,7 @@ export default function createServer({ config }: { config: z.infer<typeof config
         scheduleRevisions,
         estimateRevisions,
       ] = await Promise.all([
+        makeRequest('GET', `/project-details/${resolvedProjectId}`),
         makeRequest('GET', '/transactions', null, { projectId: resolvedProjectId }),
         makeRequest('GET', '/action-items', null, { projectId: resolvedProjectId }),
         makeRequest('GET', '/estimates', null, { projectId: resolvedProjectId }),
@@ -448,30 +450,38 @@ export default function createServer({ config }: { config: z.infer<typeof config
         makeRequest('GET', '/estimates/revision-history', null, { projectId: resolvedProjectId }),
       ]);
 
-      // Step 3: Aggregate results
-      const sections = [
-        { title: 'TRANSACTIONS', data: transactions },
-        { title: 'ACTION ITEMS', data: actionItems },
-        { title: 'ESTIMATES', data: estimates },
-        { title: 'SCHEDULES', data: schedules },
-        { title: 'SCHEDULE REVISIONS', data: scheduleRevisions },
-        { title: 'ESTIMATE REVISIONS', data: estimateRevisions },
-      ];
+      // Step 3: Parse JSON responses and build structured object
+      const parseResponse = (response: any) => {
+        if (response.isError) {
+          return { error: response.content[0].text };
+        }
+        try {
+          return JSON.parse(response.content[0].text);
+        } catch (error) {
+          return { error: 'Failed to parse response' };
+        }
+      };
 
-      const output = sections
-        .map(({ title, data }) => {
-          if (data.isError) {
-            return `${title}:\nError: ${data.content[0].text}`;
-          }
-          return `${title}:\n${data.content[0].text}`;
-        })
-        .join('\n\n---\n\n');
+      const structuredData = {
+        projectId: resolvedProjectId,
+        project: parseResponse(projectDetails),
+        financials: {
+          estimates: parseResponse(estimates),
+          estimateRevisionHistory: parseResponse(estimateRevisions),
+          transactions: parseResponse(transactions),
+        },
+        schedules: {
+          current: parseResponse(schedules),
+          revisions: parseResponse(scheduleRevisions),
+        },
+        actionItems: parseResponse(actionItems),
+      };
 
       return {
         content: [
           {
-            type: 'text',
-            text: `PROJECT SEARCH RESULTS (Project ID: ${resolvedProjectId})\n\n${output}`,
+            type: 'text' as const,
+            text: JSON.stringify(structuredData, null, 2),
           },
         ],
       };
