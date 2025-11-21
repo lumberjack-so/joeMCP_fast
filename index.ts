@@ -225,15 +225,21 @@ export default function createServer({ config }: { config: z.infer<typeof config
     'list_estimates',
     {
       title: 'List Estimates',
-      description: 'List all estimates',
+      description: 'List estimates (optionally filtered by project). Note: Each estimate can be large - use small limits to avoid token overflow',
       inputSchema: {
-        limit: z.number().optional().describe('Items per page (default: 5)'),
+        projectId: z.string().optional().describe('UUID of project to filter by (optional - if not provided, returns estimates from all projects)'),
+        limit: z.number().optional().describe('Items per page (default: 3, max: 10 to prevent token overflow)'),
       },
     },
-    async ({ limit }) => {
-      return makeRequest('GET', '/estimates', null, {
-        limit: limit || 5,
-      });
+    async ({ projectId, limit }) => {
+      const cappedLimit = Math.min(limit || 3, 10);
+      const params: any = { limit: cappedLimit };
+
+      if (projectId) {
+        params.projectId = projectId;
+      }
+
+      return makeRequest('GET', '/estimates', null, params);
     }
   );
 
@@ -245,17 +251,21 @@ export default function createServer({ config }: { config: z.infer<typeof config
     'list_action_items',
     {
       title: 'List Action Items',
-      description: 'List action items for a specific project',
+      description: 'List action items (optionally filtered by project). Use projectId filter to reduce response size',
       inputSchema: {
-        projectId: z.string().describe('UUID of the project'),
-        limit: z.number().optional().describe('Items per page (default: 5)'),
+        projectId: z.string().optional().describe('UUID of project to filter by (optional - if not provided, returns action items from all projects)'),
+        limit: z.number().optional().describe('Items per page (default: 3, max: 10 to prevent token overflow)'),
       },
     },
     async ({ projectId, limit }) => {
-      return makeRequest('GET', '/action-items', null, {
-        projectId: projectId,
-        limit: limit || 5,
-      });
+      const cappedLimit = Math.min(limit || 3, 10);
+      const params: any = { limit: cappedLimit };
+
+      if (projectId) {
+        params.projectId = projectId;
+      }
+
+      return makeRequest('GET', '/action-items', null, params);
     }
   );
 
@@ -388,15 +398,21 @@ export default function createServer({ config }: { config: z.infer<typeof config
     'list_project_schedules',
     {
       title: 'List Project Schedules',
-      description: 'List project schedules',
+      description: 'List project schedules (optionally filtered by project). Use projectId filter to reduce response size',
       inputSchema: {
-        limit: z.number().optional().describe('Items per page (default: 5)'),
+        projectId: z.string().optional().describe('UUID of project to filter by (optional - if not provided, returns schedules from all projects)'),
+        limit: z.number().optional().describe('Items per page (default: 3, max: 10 to prevent token overflow)'),
       },
     },
-    async ({ limit }) => {
-      return makeRequest('GET', '/project-schedules', null, {
-        limit: limit || 5,
-      });
+    async ({ projectId, limit }) => {
+      const cappedLimit = Math.min(limit || 3, 10);
+      const params: any = { limit: cappedLimit };
+
+      if (projectId) {
+        params.projectId = projectId;
+      }
+
+      return makeRequest('GET', '/project-schedules', null, params);
     }
   );
 
