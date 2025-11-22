@@ -446,8 +446,8 @@ async def async_agent(prompt: str, ctx: Context) -> Dict[str, Any]:
     Returns:
         Result from the async-agent after processing the workflow
     """
-    ASYNC_AGENT_URL = "https://joeapi-async-agent.fly.dev/webhooks/prompt-stream"
-    TIMEOUT = 600  # 10 minutes (increased from 6 minutes)
+    ASYNC_AGENT_URL = "https://joeapi-async-agent.fly.dev/webhooks/async"
+    TIMEOUT = 600  # 10 minutes
 
     payload = {
         "prompt": prompt,
