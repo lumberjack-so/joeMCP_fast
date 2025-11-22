@@ -563,6 +563,8 @@ export default function createServer({ config }: { config: z.infer<typeof config
       const TIMEOUT_MS = 360000; // 6 minutes
 
       try {
+        console.error('[async tool] Starting request with prompt:', prompt.substring(0, 100));
+
         // Prepare payload for async-agent with fixed values
         const payload = {
           prompt: prompt,
@@ -573,6 +575,8 @@ export default function createServer({ config }: { config: z.infer<typeof config
         // Create AbortController for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+        console.error('[async tool] Calling async-agent webhook...');
 
         // Call async-agent webhook
         const response = await fetch(`${ASYNC_AGENT_BASE_URL}/webhooks/prompt`, {
@@ -586,8 +590,19 @@ export default function createServer({ config }: { config: z.infer<typeof config
 
         clearTimeout(timeoutId);
 
+        console.error(`[async tool] Response status: ${response.status} ${response.statusText}`);
+
         if (!response.ok) {
-          const errorText = await response.text();
+          let errorText;
+          try {
+            errorText = await response.text();
+          } catch (textError: any) {
+            console.error('[async tool] Failed to read error text:', textError);
+            errorText = `Failed to read error response: ${textError.message}`;
+          }
+
+          console.error('[async tool] Error response:', errorText);
+
           return {
             content: [
               {
@@ -599,9 +614,32 @@ export default function createServer({ config }: { config: z.infer<typeof config
           };
         }
 
-        const data = await response.json();
+        // Get response text first for debugging
+        const responseText = await response.text();
+        console.error('[async tool] Response text length:', responseText.length);
+        console.error('[async tool] Response preview:', responseText.substring(0, 200));
+
+        // Parse JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          console.error('[async tool] Successfully parsed JSON response');
+        } catch (jsonError: any) {
+          console.error('[async tool] JSON parse error:', jsonError.message);
+          console.error('[async tool] Failed to parse response:', responseText.substring(0, 500));
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Async-agent JSON parse error: ${jsonError.message}\n\nRaw response (first 1000 chars):\n${responseText.substring(0, 1000)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
 
         // Return formatted response
+        console.error('[async tool] Returning successful response');
         return {
           content: [
             {
@@ -611,6 +649,11 @@ export default function createServer({ config }: { config: z.infer<typeof config
           ],
         };
       } catch (error: any) {
+        console.error('[async tool] Caught exception:', error);
+        console.error('[async tool] Error name:', error.name);
+        console.error('[async tool] Error message:', error.message);
+        console.error('[async tool] Error stack:', error.stack);
+
         if (error.name === 'AbortError') {
           return {
             content: [
@@ -627,7 +670,7 @@ export default function createServer({ config }: { config: z.infer<typeof config
           content: [
             {
               type: 'text',
-              text: `Async-agent error: ${error.message || String(error)}`,
+              text: `Async-agent error: ${error.name}: ${error.message}\n\nStack:\n${error.stack || 'No stack trace'}`,
             },
           ],
           isError: true,
