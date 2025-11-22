@@ -560,7 +560,7 @@ export default function createServer({ config }: { config: z.infer<typeof config
     },
     async ({ prompt }) => {
       const ASYNC_AGENT_BASE_URL = 'https://joeapi-async-agent.fly.dev';
-      const TIMEOUT_MS = 120000; // 2 minutes
+      const TIMEOUT_MS = 360000; // 6 minutes
 
       try {
         // Prepare payload for async-agent with fixed values
