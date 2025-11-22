@@ -553,7 +553,7 @@ export default function createServer({ config }: { config: z.infer<typeof config
     'async',
     {
       title: 'Async Agent',
-      description: 'Delegate complex multi-step workflows to the async-agent system. Use this for tasks that require multiple coordinated steps, data gathering from multiple sources, or complex orchestration.',
+      description: 'Delegate complex multi-step workflows to the async-agent system with real-time progress updates. Use this for tasks that require multiple coordinated steps, data gathering from multiple sources, or complex orchestration.',
       inputSchema: {
         prompt: z.string().describe('The task or question to send to the async-agent'),
       },
@@ -563,46 +563,32 @@ export default function createServer({ config }: { config: z.infer<typeof config
       const TIMEOUT_MS = 360000; // 6 minutes
 
       try {
-        console.error('[async tool] Starting request with prompt:', prompt.substring(0, 100));
+        console.error('[async tool] Starting STREAMING request');
+        console.error('[async tool] Prompt:', prompt.substring(0, 100));
 
-        // Prepare payload for async-agent with fixed values
+        // Prepare payload
         const payload = {
           prompt: prompt,
           searchWorkflow: true,
           async: false,
         };
 
-        // Create AbortController for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        // Call STREAMING endpoint
+        console.error('[async tool] Calling /webhooks/prompt-stream...');
 
-        console.error('[async tool] Calling async-agent webhook...');
-
-        // Call async-agent webhook
-        const response = await fetch(`${ASYNC_AGENT_BASE_URL}/webhooks/prompt`, {
+        const response = await fetch(`${ASYNC_AGENT_BASE_URL}/webhooks/prompt-stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload),
-          signal: controller.signal,
         });
-
-        clearTimeout(timeoutId);
 
         console.error(`[async tool] Response status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
-          let errorText;
-          try {
-            errorText = await response.text();
-          } catch (textError: any) {
-            console.error('[async tool] Failed to read error text:', textError);
-            errorText = `Failed to read error response: ${textError.message}`;
-          }
-
-          console.error('[async tool] Error response:', errorText);
-
+          const errorText = await response.text();
+          console.error('[async tool] HTTP error:', errorText);
           return {
             content: [
               {
@@ -614,40 +600,102 @@ export default function createServer({ config }: { config: z.infer<typeof config
           };
         }
 
-        // Get response text first for debugging
-        const responseText = await response.text();
-        console.error('[async tool] Response text length:', responseText.length);
-        console.error('[async tool] Response preview:', responseText.substring(0, 200));
+        // Process SSE stream
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('Response body is not readable');
+        }
 
-        // Parse JSON
-        let data;
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult = null;
+        let progressCount = 0;
+
+        console.error('[async tool] Reading SSE stream...');
+
+        // Set up timeout
+        const timeoutId = setTimeout(() => {
+          reader.cancel();
+          console.error('[async tool] Stream timeout - cancelling');
+        }, TIMEOUT_MS);
+
         try {
-          data = JSON.parse(responseText);
-          console.error('[async tool] Successfully parsed JSON response');
-        } catch (jsonError: any) {
-          console.error('[async tool] JSON parse error:', jsonError.message);
-          console.error('[async tool] Failed to parse response:', responseText.substring(0, 500));
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              console.error('[async tool] Stream ended');
+              break;
+            }
+
+            // Decode chunk and add to buffer
+            buffer += decoder.decode(value, { stream: true });
+
+            // Split by SSE message boundaries (\n\n)
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || ''; // Keep incomplete message in buffer
+
+            for (const line of lines) {
+              if (!line.trim() || !line.startsWith('data: ')) continue;
+
+              try {
+                const eventData = JSON.parse(line.substring(6));
+
+                if (eventData.type === 'progress') {
+                  progressCount++;
+                  console.error(
+                    `[async tool] Progress ${progressCount}: ${eventData.message} (${eventData.progress}%)`
+                  );
+
+                } else if (eventData.type === 'complete') {
+                  console.error('[async tool] Received completion event');
+                  finalResult = eventData.data;
+
+                } else if (eventData.type === 'error') {
+                  console.error('[async tool] Received error event:', eventData.message);
+                  clearTimeout(timeoutId);
+                  return {
+                    content: [
+                      {
+                        type: 'text',
+                        text: `Async-agent error: ${eventData.message}`,
+                      },
+                    ],
+                    isError: true,
+                  };
+                }
+              } catch (parseError: any) {
+                console.error('[async tool] Failed to parse SSE event:', line, parseError);
+              }
+            }
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        // Return final result
+        if (!finalResult) {
           return {
             content: [
               {
                 type: 'text',
-                text: `Async-agent JSON parse error: ${jsonError.message}\n\nRaw response (first 1000 chars):\n${responseText.substring(0, 1000)}`,
+                text: `Stream ended without completion event (received ${progressCount} progress events)`,
               },
             ],
             isError: true,
           };
         }
 
-        // Return formatted response
-        console.error('[async tool] Returning successful response');
+        console.error(`[async tool] Success! Received ${progressCount} progress events`);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(data, null, 2),
+              text: JSON.stringify(finalResult, null, 2),
             },
           ],
         };
+
       } catch (error: any) {
         console.error('[async tool] Caught exception:', error);
         console.error('[async tool] Error name:', error.name);
