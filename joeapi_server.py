@@ -11,10 +11,11 @@ from typing import Optional, Dict, Any
 import httpx
 from fastmcp import FastMCP
 
-# Initialize FastMCP server
+# Initialize FastMCP server with extended timeout for long-running operations
 mcp = FastMCP(
     "JoeAPI Construction Management",
-    dependencies=["httpx"]
+    dependencies=["httpx"],
+    request_timeout=600  # 10 minutes for long-running async_agent operations
 )
 
 # Configuration from environment variables
@@ -433,12 +434,12 @@ async def search(
 # ==========================================
 
 @mcp.tool()
-async def async_agent(prompt: str) -> Dict[str, Any]:
+async def async_agent(prompt: str, ctx) -> Dict[str, Any]:
     """
     Delegate complex multi-step workflows to the async-agent system with real-time progress.
 
     Use this for tasks that require multiple coordinated steps, data gathering from
-    multiple sources, or complex orchestration.
+    multiple sources, or complex orchestration. Supports operations up to 10 minutes.
 
     Args:
         prompt: The task or question to send to the async-agent
@@ -447,7 +448,7 @@ async def async_agent(prompt: str) -> Dict[str, Any]:
         Result from the async-agent after processing the workflow
     """
     ASYNC_AGENT_URL = "https://joeapi-async-agent.fly.dev/webhooks/prompt-stream"
-    TIMEOUT = 360  # 6 minutes
+    TIMEOUT = 600  # 10 minutes (increased from 6 minutes)
 
     payload = {
         "prompt": prompt,
@@ -480,12 +481,29 @@ async def async_agent(prompt: str) -> Dict[str, Any]:
 
                         if event_data.get("type") == "progress":
                             progress_count += 1
+                            progress_pct = event_data.get('progress', 0)
+                            progress_msg = event_data.get('message', '')
+
                             # Log progress (visible in FastMCP Cloud logs)
-                            print(f"[async] Progress {progress_count}: {event_data.get('message')} ({event_data.get('progress')}%)")
+                            print(f"[async] Progress {progress_count}: {progress_msg} ({progress_pct}%)")
+
+                            # Report progress to keep connection alive and inform client
+                            await ctx.report_progress(
+                                progress=progress_pct,
+                                total=100,
+                                message=progress_msg
+                            )
 
                         elif event_data.get("type") == "complete":
                             final_result = event_data.get("data")
                             print(f"[async] Completed with {progress_count} progress events")
+
+                            # Report final completion
+                            await ctx.report_progress(
+                                progress=100,
+                                total=100,
+                                message="Workflow completed successfully"
+                            )
 
                         elif event_data.get("type") == "error":
                             raise Exception(f"Async-agent error: {event_data.get('message')}")
