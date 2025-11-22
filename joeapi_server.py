@@ -9,13 +9,12 @@ Exposes construction management tools via FastMCP for deployment to FastMCP Clou
 import os
 from typing import Optional, Dict, Any
 import httpx
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
 
-# Initialize FastMCP server with extended timeout for long-running operations
+# Initialize FastMCP server
 mcp = FastMCP(
     "JoeAPI Construction Management",
-    dependencies=["httpx"],
-    request_timeout=600  # 10 minutes for long-running async_agent operations
+    dependencies=["httpx"]
 )
 
 # Configuration from environment variables
@@ -434,7 +433,7 @@ async def search(
 # ==========================================
 
 @mcp.tool()
-async def async_agent(prompt: str, ctx) -> Dict[str, Any]:
+async def async_agent(prompt: str, ctx: Context) -> Dict[str, Any]:
     """
     Delegate complex multi-step workflows to the async-agent system with real-time progress.
 
